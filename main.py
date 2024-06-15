@@ -1,4 +1,5 @@
 from graph_from_json import GraphGivenJSON
+from get_priority_attributes import PriorityAttributesCalculator
 
 ''' REPRESENT GRAPH GIVEN JSON DATA'''
 # JSON data representing the graph
@@ -13,3 +14,15 @@ graph_from_json.draw_graph()
 
 
 '''PRIORITY ATTRIBUTES'''
+# Create an instance of PriorityAttributesCalculator
+priority_calculator = PriorityAttributesCalculator(json_data)
+
+# Obtain all attribute tables
+all_attributes = priority_calculator.obtain_attribute_table()
+print("All Attributes:")
+print(all_attributes)
+
+# Obtain a specific attribute table
+t_level_table = priority_calculator.obtain_attribute_table("T-Level")
+print("\nT-Level Table:")
+print(t_level_table)

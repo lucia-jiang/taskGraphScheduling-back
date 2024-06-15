@@ -14,6 +14,7 @@ class GraphGivenJSON:
             node_id = node_data['id']
             node_weight = node_data['weight']
             node_pos = tuple(node_data['pos'])
+
             self.G.add_node(node_id, weight=node_weight, pos=node_pos)
 
         # Add edges with attributes
