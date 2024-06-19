@@ -1,10 +1,11 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-from typing import List, Dict
+from api.steps import router as steps_router
+from api.graph_properties import router as graph_properties_router
 
 app = FastAPI()
 
-# CORS settings to allow all origins (adjust as needed for production)
+# CORS settings to allow all origins
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["http://localhost:3000"],
@@ -13,14 +14,9 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-steps_list = [
-    {"processor": "1", "node": "3", "time": "5", "total": "5"},
-    {"processor": "2", "node": "4", "time": "3", "total": "8"},
-]
-
-@app.get("/steps", response_model=List[Dict[str, str]])
-def get_steps():
-    return steps_list
+# Include the routers
+app.include_router(steps_router)
+app.include_router(graph_properties_router, prefix="/graph")
 
 if __name__ == "__main__":
     import uvicorn
