@@ -4,9 +4,10 @@ import pandas as pd
 from .graph_from_json import GraphGivenJSON
 
 class PriorityAttributesCalculator:
-    def __init__(self, json_data):
+    def __init__(self, json_data, num_processors=3):
         self.graph_from_json = GraphGivenJSON(json_data)
         self.G = self.graph_from_json.parse_json()
+        self.num_processors = num_processors
 
     def calculate_sl(self):
         sl = {}
@@ -101,3 +102,65 @@ class PriorityAttributesCalculator:
             return pd.DataFrame({"B-Level": self.calculate_b_level()})
         else:
             raise ValueError("Invalid attribute name. Please provide one of: 'SL', 'T-Level', 'EST', 'LST', 'B-Level'.")
+
+    def calculate_hlfet_steps(self):
+        steps = []
+
+        # Step 1: Calculate Static Level (SL) for each task
+        sl = self.calculate_sl()
+        steps.append({
+            "step": "Calculate Static Level (SL) for each task.",
+            "details": sl,
+            "desc": "SL calculated for each node based on its successors."
+        })
+
+        # Step 2: List all tasks and sort them by SL in descending order
+        sorted_tasks = sorted(sl, key=sl.get, reverse=True)
+        steps.append({
+            "step": "List all tasks and sort them by SL in descending order.",
+            "details": sorted_tasks,
+            "desc": "Tasks sorted by SL in descending order."
+        })
+
+        # Step 3: Schedule tasks
+        scheduled_tasks = []
+        processors = {i: 0 for i in range(1, self.num_processors + 1)}  # Initialize all processors with available time 0
+
+        for task in sorted_tasks:
+            best_processor = None
+            earliest_end_time = float('inf')
+            candidates = []
+
+            for processor, available_time in processors.items():
+                start_time = max(available_time, self.calculate_t_level().get(task, 0))
+                end_time = start_time + self.G.nodes[task]['weight']
+                candidates.append({"processor": processor, "start_time": start_time, "end_time": end_time})
+
+                if end_time < earliest_end_time:
+                    earliest_end_time = end_time
+                    best_processor = processor
+
+            processors[best_processor] = earliest_end_time
+            scheduled_tasks.append({
+                "processor": best_processor,
+                "node": task,
+                "start_time": start_time,
+                "end_time": earliest_end_time,
+                "total_time": earliest_end_time,
+                "candidates": candidates
+            })
+
+            steps.append({
+                "step": f"Schedule task {task} with SL {sl[task]}.",
+                "details": {
+                    "processor": best_processor,
+                    "node": task,
+                    "start_time": start_time,
+                    "end_time": earliest_end_time,
+                    "total_time": earliest_end_time,
+                    "candidates": candidates
+                },
+                "desc": f"Scheduled node {task} on processor {best_processor} from time {start_time} to {earliest_end_time}."
+            })
+
+        return steps
