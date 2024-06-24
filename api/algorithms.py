@@ -43,3 +43,12 @@ def etf_steps(graph_data: GraphData):
         return steps
     except Exception as e:
         raise HTTPException(status_code=400, detail=str(e))
+
+@router.post("/dls-steps", response_model=list)
+def dls_steps(graph_data: GraphData):
+    try:
+        calculator = PriorityAttributesCalculator(graph_data.dict())
+        steps = calculator.calculate_dls_steps()
+        return steps
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=str(e))
