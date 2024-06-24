@@ -310,6 +310,11 @@ class PriorityAttributesCalculator:
 
         # Step 2: Initialise the ready list with the entry node (root node)
         ready_nodes = [node for node in self.G.nodes if not list(self.G.predecessors(node))]
+        steps.append({
+            "step": "Initialize ready nodes list with entry nodes.",
+            "details": ready_nodes,
+            "desc": "Entry nodes identified and added to the ready list."
+        })
 
         # Step 3: While there are nodes in the ready list
         scheduled_tasks = []
