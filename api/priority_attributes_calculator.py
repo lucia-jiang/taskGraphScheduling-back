@@ -238,7 +238,23 @@ class PriorityAttributesCalculator:
             candidates = []
 
             for processor, available_time in processors.items():
-                start_time = max(available_time, self.calculate_t_level().get(task, 0))
+                start_time = available_time
+                print("Processing task", task, "initial start_time", start_time)
+
+                # Consider the communication cost
+                for predecessor in self.G.predecessors(task):
+                    predecessor_task = next((t for t in scheduled_tasks if t['node'] == predecessor), None)
+                    print("predecessor_task", predecessor_task)
+                    if predecessor_task:
+                        if predecessor_task['processor'] == processor:
+                            # If the predecessor is on the same processor, no communication cost
+                            start_time = max(start_time, predecessor_task['end_time'])
+                        else:
+                            # If the predecessor is on a different processor, add communication cost
+                            start_time = max(start_time,
+                                             predecessor_task['end_time'] + self.G.edges[predecessor, task]['cost'])
+                    print("Updated start_time after considering predecessor", predecessor, ":", start_time)
+
                 end_time = start_time + self.G.nodes[task]['weight']
                 candidates.append({"processor": processor, "start_time": start_time, "end_time": end_time})
 
