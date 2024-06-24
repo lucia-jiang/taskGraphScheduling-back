@@ -25,3 +25,12 @@ def hlfet_steps(graph_data: GraphData):
         return steps
     except Exception as e:
         raise HTTPException(status_code=400, detail=str(e))
+
+@router.post("/mcp-steps", response_model=list)
+def hlfet_steps(graph_data: GraphData):
+    try:
+        calculator = PriorityAttributesCalculator(graph_data.dict())
+        steps = calculator.calculate_mcp_steps()
+        return steps
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=str(e))

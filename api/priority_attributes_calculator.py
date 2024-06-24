@@ -47,6 +47,16 @@ class PriorityAttributesCalculator:
                 lst[node] = min(lst[succ]-self.G.edges[node, succ]['cost'] for succ in successors) - self.G.nodes[node]['weight']
         return lst
 
+    def create_lst_lists(self, lst):
+        # Create lists of LST for each task and its dependents
+        lst_lists = {}
+        for node in self.G.nodes():
+            lst_list = [lst[node]]
+            for successor in self.G.successors(node):
+                lst_list.append(lst[successor])
+            lst_lists[node] = lst_list
+        return lst_lists
+
     def calculate_b_level(self):
         b_level = {}
         for node in reversed(list(nx.topological_sort(self.G))):
@@ -124,7 +134,8 @@ class PriorityAttributesCalculator:
 
         # Step 3: Schedule tasks
         scheduled_tasks = []
-        processors = {i: 0 for i in range(1, self.num_processors + 1)}  # Initialize all processors with available time 0
+        processors = {i: 0 for i in
+                      range(1, self.num_processors + 1)}  # Initialize all processors with available time 0
 
         for task in sorted_tasks:
             best_processor = None
@@ -132,7 +143,23 @@ class PriorityAttributesCalculator:
             candidates = []
 
             for processor, available_time in processors.items():
-                start_time = max(available_time, self.calculate_t_level().get(task, 0))
+                start_time = available_time
+                print("Processing task", task, "initial start_time", start_time)
+
+                # Consider the communication cost
+                for predecessor in self.G.predecessors(task):
+                    predecessor_task = next((t for t in scheduled_tasks if t['node'] == predecessor), None)
+                    print("predecessor_task", predecessor_task)
+                    if predecessor_task:
+                        if predecessor_task['processor'] == processor:
+                            # If the predecessor is on the same processor, no communication cost
+                            start_time = max(start_time, predecessor_task['end_time'])
+                        else:
+                            # If the predecessor is on a different processor, add communication cost
+                            start_time = max(start_time,
+                                             predecessor_task['end_time'] + self.G.edges[predecessor, task]['cost'])
+                    print("Updated start_time after considering predecessor", predecessor, ":", start_time)
+
                 end_time = start_time + self.G.nodes[task]['weight']
                 candidates.append({"processor": processor, "start_time": start_time, "end_time": end_time})
 
@@ -161,6 +188,85 @@ class PriorityAttributesCalculator:
                     "candidates": candidates
                 },
                 "desc": f"Scheduled node {task} on processor {best_processor} from time {start_time} to {earliest_end_time}."
+            })
+
+        return steps
+
+    def calculate_mcp_steps(self):
+        steps = []
+
+        # Step 1: Calculate Latest Start Time (LST) for each task
+        lst = self.calculate_lst()
+        steps.append({
+            "step": "Calculate Latest Start Time (LST) for each task in the graph.",
+            "details": lst,
+            "desc": "LST calculated for each node."
+        })
+
+        # Step 2: For each task, create a list containing its LST and the LST of all its dependent tasks
+        lst_lists = self.create_lst_lists(lst)
+        steps.append({
+            "step": "For each task, create a list containing its LST and the LST of all its dependent tasks.",
+            "details": lst_lists,
+            "desc": "Lists created for each task containing its LST and the LST of its dependents."
+        })
+
+        # Step 3: Sort these lists in ascending order of tasks' LST
+        sorted_lst_lists = {task: sorted(lst_list) for task, lst_list in lst_lists.items()}
+        steps.append({
+            "step": "Sort these lists in ascending order of tasks' LST.",
+            "details": sorted_lst_lists,
+            "desc": "Lists sorted by tasks' LST in ascending order."
+        })
+
+        # Step 4: Create a task list (L) sorted by ascending LST
+        sorted_tasks_by_lst = sorted(lst, key=lst.get)
+        steps.append({
+            "step": "Create a task list (L) sorted by ascending LST. Resolve ties using the sorted lists from Step 2.",
+            "details": sorted_tasks_by_lst,
+            "desc": "Tasks sorted by ascending LST, with ties resolved using the sorted lists from Step 2."
+        })
+
+        # Step 5: Schedule tasks
+        scheduled_tasks = []
+        processors = {i: 0 for i in
+                      range(1, self.num_processors + 1)}  # Initialize all processors with available time 0
+
+        for task in sorted_tasks_by_lst:
+            best_processor = None
+            earliest_start_time = float('inf')
+            candidates = []
+
+            for processor, available_time in processors.items():
+                start_time = max(available_time, self.calculate_t_level().get(task, 0))
+                end_time = start_time + self.G.nodes[task]['weight']
+                candidates.append({"processor": processor, "start_time": start_time, "end_time": end_time})
+
+                if start_time < earliest_start_time:
+                    earliest_start_time = start_time
+                    best_processor = processor
+
+            processors[best_processor] = earliest_start_time + self.G.nodes[task]['weight']
+            scheduled_tasks.append({
+                "processor": best_processor,
+                "node": task,
+                "start_time": earliest_start_time,
+                "end_time": earliest_start_time + self.G.nodes[task]['weight'],
+                "total_time": earliest_start_time + self.G.nodes[task]['weight'],
+                "candidates": candidates
+            })
+
+            steps.append({
+                "step": f"Schedule task {task} with LST {lst[task]}.",
+                "details": {
+                    "processor": best_processor,
+                    "node": task,
+                    "start_time": earliest_start_time,
+                    "end_time": earliest_start_time + self.G.nodes[task]['weight'],
+                    "total_time": earliest_start_time + self.G.nodes[task]['weight'],
+                    "candidates": candidates
+                },
+                "desc": f"Scheduled node {task} on processor {best_processor} from time {earliest_start_time} to {earliest_start_time + self.G.nodes[task]['weight']}."
             })
 
         return steps
