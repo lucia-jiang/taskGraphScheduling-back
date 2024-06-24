@@ -286,3 +286,105 @@ class PriorityAttributesCalculator:
             })
 
         return steps
+
+    def calculate_eexct(self): # earliest execution time
+        est = {}
+        for node in nx.topological_sort(self.G):
+            if not list(self.G.predecessors(node)):
+                est[node] = 0
+            else:
+                est[node] = max(est[pred] + self.G.nodes[pred]['weight'] + self.G.edges[pred, node]['cost']
+                                for pred in self.G.predecessors(node))
+        return est
+
+    def calculate_etf_steps(self):
+        steps = []
+
+        # Step 1: Calculate Static Level (SL) for each task
+        sl = self.calculate_sl()
+        steps.append({
+            "step": "Calculate Static Level (SL) for each task.",
+            "details": sl,
+            "desc": "SL calculated based on task dependencies and weights."
+        })
+
+        # Step 2: Initialise the ready list with the entry node (root node)
+        ready_nodes = [node for node in self.G.nodes if not list(self.G.predecessors(node))]
+
+        # Step 3: While there are nodes in the ready list
+        scheduled_tasks = []
+        processor_available_times = {i: 0 for i in range(1, self.num_processors + 1)}
+
+        while ready_nodes:
+            # Calculate earliest execution start time for each node on all processors
+            earliest_execution_times = {}
+
+            for node in ready_nodes:
+                earliest_execution_times[node] = []
+                for processor, available_time in processor_available_times.items():
+                    start_time = available_time
+
+                    # Consider the communication cost
+                    for predecessor in self.G.predecessors(node):
+                        predecessor_task = next((t for t in scheduled_tasks if t['node'] == predecessor), None)
+                        if predecessor_task:
+                            if predecessor_task['processor'] == processor:
+                                start_time = max(start_time, predecessor_task['end_time'])
+                            else:
+                                start_time = max(start_time,
+                                                 predecessor_task['end_time'] + self.G.edges[predecessor, node]['cost'])
+
+                    end_time = start_time + self.G.nodes[node]['weight']
+                    earliest_execution_times[node].append(
+                        {"processor": processor, "start_time": start_time, "end_time": end_time})
+
+            # Choose the node-processor pair with the earliest execution start time
+            best_node = None
+            best_processor = None
+            earliest_start_time = float('inf')
+            highest_sl = -1
+
+            for node, processor_times in earliest_execution_times.items():
+                for times in processor_times:
+                    start_time = times['start_time']
+                    if start_time < earliest_start_time or (
+                            start_time == earliest_start_time and sl[node] > highest_sl):
+                        best_node = node
+                        best_processor = times['processor']
+                        earliest_start_time = start_time
+                        highest_sl = sl[node]
+
+            # Schedule the best_node on the best_processor
+            end_time = earliest_start_time + self.G.nodes[best_node]['weight']
+            scheduled_tasks.append({
+                "processor": best_processor,
+                "node": best_node,
+                "start_time": earliest_start_time,
+                "end_time": end_time
+            })
+
+            # Update processor_available_times for the chosen processor
+            processor_available_times[best_processor] = end_time
+
+            # Remove the scheduled node from ready_nodes
+            ready_nodes.remove(best_node)
+
+            # Add newly ready nodes (nodes whose dependencies are satisfied) to ready_nodes
+            for succ in self.G.successors(best_node):
+                if all(pred in [task['node'] for task in scheduled_tasks] for pred in self.G.predecessors(succ)):
+                    ready_nodes.append(succ)
+
+            # Record this step in the steps list
+            steps.append({
+                "step": f"Schedule task {best_node} with SL {sl[best_node]}.",
+                "details": {
+                    "processor": best_processor,
+                    "node": best_node,
+                    "start_time": earliest_start_time,
+                    "end_time": end_time,
+                    "candidates": earliest_execution_times[best_node]
+                },
+                "desc": f"Scheduled node {best_node} on processor {best_processor} from time {earliest_start_time} to {end_time}."
+            })
+
+        return steps
