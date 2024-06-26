@@ -1,13 +1,15 @@
 # api/priority_attributes_calculator.py
+import itertools
+
 import networkx as nx
 import pandas as pd
 from .graph_from_json import GraphGivenJSON
 
 class PriorityAttributesCalculator:
-    def __init__(self, json_data, num_processors=3):
+    def __init__(self, json_data):
         self.graph_from_json = GraphGivenJSON(json_data)
         self.G = self.graph_from_json.parse_json()
-        self.num_processors = num_processors
+        self.num_processors = json_data['num_processors']
 
     def calculate_sl(self):
         sl = {}
@@ -144,12 +146,10 @@ class PriorityAttributesCalculator:
 
             for processor, available_time in processors.items():
                 start_time = available_time
-                print("Processing task", task, "initial start_time", start_time)
 
                 # Consider the communication cost
                 for predecessor in self.G.predecessors(task):
                     predecessor_task = next((t for t in scheduled_tasks if t['node'] == predecessor), None)
-                    print("predecessor_task", predecessor_task)
                     if predecessor_task:
                         if predecessor_task['processor'] == processor:
                             # If the predecessor is on the same processor, no communication cost
@@ -158,7 +158,6 @@ class PriorityAttributesCalculator:
                             # If the predecessor is on a different processor, add communication cost
                             start_time = max(start_time,
                                              predecessor_task['end_time'] + self.G.edges[predecessor, task]['cost'])
-                    print("Updated start_time after considering predecessor", predecessor, ":", start_time)
 
                 end_time = start_time + self.G.nodes[task]['weight']
                 candidates.append({"processor": processor, "start_time": start_time, "end_time": end_time})
@@ -485,3 +484,68 @@ class PriorityAttributesCalculator:
                     ready_nodes.append(successor)
 
         return steps
+
+    ##BRUTE FORCE SOLUTION
+    def brute_force_solution(self):
+        processors = {i: 0 for i in range(1, self.num_processors + 1)}
+        schedule = []
+        task_start_times = {}
+
+        tasks = list(self.G.nodes)
+
+        for task in tasks:
+            est = 0
+            for pred in self.G.predecessors(task):
+                pred_end_time = task_start_times[pred] + self.G.nodes[pred]['weight']
+                if task_start_times[pred]['processor'] == processor:
+                    est = max(est, pred_end_time)
+                else:
+                    est = max(est, pred_end_time + self.G.edges[pred, task]['cost'])
+
+            best_processor = None
+            earliest_start_time = float('inf')
+            candidates = []
+
+            for processor, available_time in processors.items():
+                start_time = available_time
+
+                # Consider the communication cost
+                for predecessor in self.G.predecessors(task):
+                    predecessor_task = next((t for t in schedule if t['task'] == predecessor), None)
+                    if predecessor_task:
+                        if predecessor_task['processor'] == processor:
+                            start_time = max(start_time, predecessor_task['end_time'])
+                        else:
+                            start_time = max(start_time,
+                                             predecessor_task['end_time'] + self.G.edges[predecessor, task]['cost'])
+
+                end_time = start_time + self.G.nodes[task]['weight']
+                candidates.append({
+                    "processor": processor,
+                    "start_time": start_time,
+                    "end_time": end_time
+                })
+
+                if start_time < earliest_start_time:
+                    earliest_start_time = start_time
+                    best_processor = processor
+
+            processors[best_processor] = earliest_start_time + self.G.nodes[task]['weight']
+            schedule.append({
+                'task': task,
+                'processor': best_processor,
+                'start_time': earliest_start_time,
+                'end_time': earliest_start_time + self.G.nodes[task]['weight'],
+                'total_time': earliest_start_time + self.G.nodes[task]['weight'],
+                'candidates': candidates
+            })
+
+            task_start_times[task] = {
+                'processor': best_processor,
+                'start_time': earliest_start_time,
+                'end_time': earliest_start_time + self.G.nodes[task]['weight'],
+                'total_time': earliest_start_time + self.G.nodes[task]['weight'],
+                'candidates': candidates
+            }
+
+        return schedule

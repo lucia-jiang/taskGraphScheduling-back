@@ -1,10 +1,12 @@
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
 from .priority_attributes_calculator import PriorityAttributesCalculator
+from typing import Optional
 
 router = APIRouter()
 
 class GraphData(BaseModel):
+    num_processors: Optional[int] = None
     nodes: list
     edges: list
 

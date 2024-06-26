@@ -5,6 +5,7 @@ from api.priority_attributes_calculator import PriorityAttributesCalculator
 router = APIRouter()
 
 class GraphData(BaseModel):
+    num_processors: int
     nodes: list
     edges: list
 
@@ -49,6 +50,15 @@ def dls_steps(graph_data: GraphData):
     try:
         calculator = PriorityAttributesCalculator(graph_data.dict())
         steps = calculator.calculate_dls_steps()
+        return steps
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
+@router.post("/brute-force", response_model=list)
+def brute_force_solution(graph_data: GraphData):
+    try:
+        calculator = PriorityAttributesCalculator(graph_data.dict())
+        steps = calculator.brute_force_solution()
         return steps
     except Exception as e:
         raise HTTPException(status_code=400, detail=str(e))
