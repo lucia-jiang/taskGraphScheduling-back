@@ -146,6 +146,7 @@ class PriorityAttributesCalculator:
 
             for processor, available_time in processors.items():
                 start_time = available_time
+                predecessor_details = []
 
                 # Consider the communication cost
                 for predecessor in self.G.predecessors(task):
@@ -154,15 +155,32 @@ class PriorityAttributesCalculator:
                         if predecessor_task['processor'] == processor:
                             # If the predecessor is on the same processor, no communication cost
                             start_time = max(start_time, predecessor_task['end_time'])
+                            comm_cost = 0
                         else:
                             # If the predecessor is on a different processor, add communication cost
                             start_time = max(start_time,
                                              predecessor_task['end_time'] + self.G.edges[predecessor, task]['cost'])
+                            comm_cost = self.G.edges[predecessor, task]['cost']
+                        predecessor_details.append({
+                            "predecessor": predecessor,
+                            "processor": predecessor_task['processor'],
+                            "same_processor": predecessor_task['processor'] == processor,
+                            "start_time": predecessor_task['start_time'],
+                            "end_time": predecessor_task['end_time'],
+                            "comm_cost": comm_cost
+                        })
 
                 end_time = start_time + self.G.nodes[task]['weight']
-                candidates.append({"processor": processor, "start_time": start_time, "end_time": end_time})
+                candidates.append({
+                    "processor": processor,
+                    "start_time": start_time,
+                    "end_time": end_time,
+                    "node_weight": self.G.nodes[task]['weight'],
+                    "predecessor_details": predecessor_details
+                })
 
                 if end_time < earliest_end_time:
+                    earliest_start_time = start_time
                     earliest_end_time = end_time
                     best_processor = processor
 
@@ -170,7 +188,7 @@ class PriorityAttributesCalculator:
             scheduled_tasks.append({
                 "processor": best_processor,
                 "node": task,
-                "start_time": start_time,
+                "start_time": earliest_start_time,
                 "end_time": earliest_end_time,
                 "total_time": earliest_end_time,
                 "candidates": candidates
@@ -181,12 +199,12 @@ class PriorityAttributesCalculator:
                 "details": {
                     "processor": best_processor,
                     "node": task,
-                    "start_time": start_time,
+                    "start_time": earliest_start_time,
                     "end_time": earliest_end_time,
                     "total_time": earliest_end_time,
                     "candidates": candidates
                 },
-                "desc": f"Scheduled node {task} on processor {best_processor} from time {start_time} to {earliest_end_time}."
+                "desc": f"Scheduled node {task} on processor {best_processor} from time {earliest_start_time} to {earliest_end_time}."
             })
 
         return steps
@@ -202,31 +220,15 @@ class PriorityAttributesCalculator:
             "desc": "LST calculated for each node."
         })
 
-        # Step 2: For each task, create a list containing its LST and the LST of all its dependent tasks
-        lst_lists = self.create_lst_lists(lst)
-        steps.append({
-            "step": "For each task, create a list containing its LST and the LST of all its dependent tasks.",
-            "details": lst_lists,
-            "desc": "Lists created for each task containing its LST and the LST of its dependents."
-        })
-
-        # Step 3: Sort these lists in ascending order of tasks' LST
-        sorted_lst_lists = {task: sorted(lst_list) for task, lst_list in lst_lists.items()}
-        steps.append({
-            "step": "Sort these lists in ascending order of tasks' LST.",
-            "details": sorted_lst_lists,
-            "desc": "Lists sorted by tasks' LST in ascending order."
-        })
-
-        # Step 4: Create a task list (L) sorted by ascending LST
+        # Step 2: List all tasks and sort them by LST in ascending order
         sorted_tasks_by_lst = sorted(lst, key=lst.get)
         steps.append({
-            "step": "Create a task list (L) sorted by ascending LST. Resolve ties using the sorted lists from Step 2.",
+            "step": "List all tasks and sort them by LST in ascending order.",
             "details": sorted_tasks_by_lst,
-            "desc": "Tasks sorted by ascending LST, with ties resolved using the sorted lists from Step 2."
+            "desc": "Tasks sorted by LST in ascending order."
         })
 
-        # Step 5: Schedule tasks
+        # Step 3: Schedule tasks
         scheduled_tasks = []
         processors = {i: 0 for i in
                       range(1, self.num_processors + 1)}  # Initialize all processors with available time 0
@@ -238,24 +240,45 @@ class PriorityAttributesCalculator:
 
             for processor, available_time in processors.items():
                 start_time = available_time
-                print("Processing task", task, "initial start_time", start_time)
+                predecessor_details = []
 
                 # Consider the communication cost
                 for predecessor in self.G.predecessors(task):
                     predecessor_task = next((t for t in scheduled_tasks if t['node'] == predecessor), None)
-                    print("predecessor_task", predecessor_task)
                     if predecessor_task:
                         if predecessor_task['processor'] == processor:
                             # If the predecessor is on the same processor, no communication cost
                             start_time = max(start_time, predecessor_task['end_time'])
+                            predecessor_details.append({
+                                "predecessor": predecessor,
+                                "processor": processor,
+                                "same_processor": True,
+                                "start_time": start_time,
+                                "end_time": predecessor_task['end_time'],
+                                "comm_cost": 0
+                            })
                         else:
                             # If the predecessor is on a different processor, add communication cost
-                            start_time = max(start_time,
-                                             predecessor_task['end_time'] + self.G.edges[predecessor, task]['cost'])
-                    print("Updated start_time after considering predecessor", predecessor, ":", start_time)
+                            comm_cost = self.G.edges[predecessor, task]['cost']
+                            start_time = max(start_time, predecessor_task['end_time'] + comm_cost)
+                            predecessor_details.append({
+                                "predecessor": predecessor,
+                                "processor": predecessor_task['processor'],
+                                "same_processor": False,
+                                "start_time": start_time,
+                                "end_time": predecessor_task['end_time'],
+                                "comm_cost": comm_cost
+                            })
+
 
                 end_time = start_time + self.G.nodes[task]['weight']
-                candidates.append({"processor": processor, "start_time": start_time, "end_time": end_time})
+                candidates.append({
+                    "processor": processor,
+                    "start_time": start_time,
+                    "end_time": end_time,
+                    "node_weight": self.G.nodes[task]['weight'],
+                    "predecessor_details": predecessor_details
+                })
 
                 if start_time < earliest_start_time:
                     earliest_start_time = start_time
@@ -286,7 +309,7 @@ class PriorityAttributesCalculator:
 
         return steps
 
-    def calculate_eexct(self): # earliest execution time
+    def calculate_eexct(self):  # earliest execution time
         est = {}
         for node in nx.topological_sort(self.G):
             if not list(self.G.predecessors(node)):
@@ -327,6 +350,7 @@ class PriorityAttributesCalculator:
                 earliest_execution_times[node] = []
                 for processor, available_time in processor_available_times.items():
                     start_time = available_time
+                    predecessor_details = []
 
                     # Consider the communication cost
                     for predecessor in self.G.predecessors(node):
@@ -334,13 +358,28 @@ class PriorityAttributesCalculator:
                         if predecessor_task:
                             if predecessor_task['processor'] == processor:
                                 start_time = max(start_time, predecessor_task['end_time'])
+                                comm_cost = 0
                             else:
-                                start_time = max(start_time,
-                                                 predecessor_task['end_time'] + self.G.edges[predecessor, node]['cost'])
+                                comm_cost = self.G.edges[predecessor, node]['cost']
+                                start_time = max(start_time, predecessor_task['end_time'] + comm_cost)
+
+                            predecessor_details.append({
+                                "predecessor": predecessor,
+                                "processor": predecessor_task['processor'],
+                                "same_processor": predecessor_task['processor'] == processor,
+                                "start_time": predecessor_task['start_time'],
+                                "end_time": predecessor_task['end_time'],
+                                "comm_cost": comm_cost
+                            })
 
                     end_time = start_time + self.G.nodes[node]['weight']
-                    earliest_execution_times[node].append(
-                        {"processor": processor, "start_time": start_time, "end_time": end_time})
+                    earliest_execution_times[node].append({
+                        "processor": processor,
+                        "start_time": start_time,
+                        "end_time": end_time,
+                        "node_weight": self.G.nodes[node]['weight'],
+                        "predecessor_details": predecessor_details
+                    })
 
             # Choose the node-processor pair with the earliest execution start time
             best_node = None
@@ -360,12 +399,29 @@ class PriorityAttributesCalculator:
 
             # Schedule the best_node on the best_processor
             end_time = earliest_start_time + self.G.nodes[best_node]['weight']
-            scheduled_tasks.append({
+            best_predecessor_details = next(t['predecessor_details'] for t in earliest_execution_times[best_node] if
+                                            t['processor'] == best_processor)
+            candidates = []
+
+            for times in earliest_execution_times[best_node]:
+                candidates.append({
+                    "processor": times['processor'],
+                    "start_time": times['start_time'],
+                    "end_time": times['end_time'],
+                    "node_weight": times['node_weight'],
+                    "predecessor_details": times['predecessor_details']
+                })
+
+            scheduled_task = {
                 "processor": best_processor,
                 "node": best_node,
                 "start_time": earliest_start_time,
-                "end_time": end_time
-            })
+                "end_time": end_time,
+                "total_time": end_time,
+                "predecessor_details": best_predecessor_details,
+                "candidates": candidates
+            }
+            scheduled_tasks.append(scheduled_task)
 
             # Update processor_available_times for the chosen processor
             processor_available_times[best_processor] = end_time
@@ -381,18 +437,13 @@ class PriorityAttributesCalculator:
             # Record this step in the steps list
             steps.append({
                 "step": f"Schedule task {best_node} with SL {sl[best_node]}.",
-                "details": {
-                    "processor": best_processor,
-                    "node": best_node,
-                    "start_time": earliest_start_time,
-                    "end_time": end_time,
-                    "candidates": earliest_execution_times[best_node]
-                },
+                "details": scheduled_task,
                 "desc": f"Scheduled node {best_node} on processor {best_processor} from time {earliest_start_time} to {end_time}."
             })
 
         return steps
 
+    #TODO: not working
     def calculate_dls_steps(self):
         steps = []
 
@@ -485,7 +536,7 @@ class PriorityAttributesCalculator:
 
         return steps
 
-    ##BRUTE FORCE SOLUTION
+    #TODO: BRUTE FORCE SOLUTION
     def brute_force_solution(self):
         processors = {i: 0 for i in range(1, self.num_processors + 1)}
         schedule = []
