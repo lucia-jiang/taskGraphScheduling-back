@@ -165,9 +165,11 @@ class PriorityAttributesCalculator:
                             "predecessor": predecessor,
                             "processor": predecessor_task['processor'],
                             "same_processor": predecessor_task['processor'] == processor,
-                            "start_time": predecessor_task['start_time'],
-                            "end_time": predecessor_task['end_time'],
-                            "comm_cost": comm_cost
+                            "pred_start_time": predecessor_task['start_time'],
+                            "pred_end_time": predecessor_task['end_time'],
+                            "comm_cost": comm_cost,
+                            "available_time": available_time,
+                            "max_start_time": start_time
                         })
 
                 end_time = start_time + self.G.nodes[task]['weight']
@@ -249,26 +251,21 @@ class PriorityAttributesCalculator:
                         if predecessor_task['processor'] == processor:
                             # If the predecessor is on the same processor, no communication cost
                             start_time = max(start_time, predecessor_task['end_time'])
-                            predecessor_details.append({
-                                "predecessor": predecessor,
-                                "processor": processor,
-                                "same_processor": True,
-                                "start_time": start_time,
-                                "end_time": predecessor_task['end_time'],
-                                "comm_cost": 0
-                            })
+                            comm_cost = 0
                         else:
                             # If the predecessor is on a different processor, add communication cost
                             comm_cost = self.G.edges[predecessor, task]['cost']
                             start_time = max(start_time, predecessor_task['end_time'] + comm_cost)
-                            predecessor_details.append({
-                                "predecessor": predecessor,
-                                "processor": predecessor_task['processor'],
-                                "same_processor": False,
-                                "start_time": start_time,
-                                "end_time": predecessor_task['end_time'],
-                                "comm_cost": comm_cost
-                            })
+                        predecessor_details.append({
+                            "predecessor": predecessor,
+                            "processor": predecessor_task['processor'],
+                            "same_processor": predecessor_task['processor'] == processor,
+                            "pred_start_time": predecessor_task['start_time'],
+                            "pred_end_time": predecessor_task['end_time'],
+                            "comm_cost": comm_cost,
+                            "available_time": available_time,
+                            "max_start_time": start_time
+                        })
 
 
                 end_time = start_time + self.G.nodes[task]['weight']
@@ -367,9 +364,11 @@ class PriorityAttributesCalculator:
                                 "predecessor": predecessor,
                                 "processor": predecessor_task['processor'],
                                 "same_processor": predecessor_task['processor'] == processor,
-                                "start_time": predecessor_task['start_time'],
-                                "end_time": predecessor_task['end_time'],
-                                "comm_cost": comm_cost
+                                "pred_start_time": predecessor_task['start_time'],
+                                "pred_end_time": predecessor_task['end_time'],
+                                "comm_cost": comm_cost,
+                                "available_time": available_time,
+                                "max_start_time": start_time
                             })
 
                     end_time = start_time + self.G.nodes[node]['weight']
@@ -399,10 +398,11 @@ class PriorityAttributesCalculator:
 
             # Schedule the best_node on the best_processor
             end_time = earliest_start_time + self.G.nodes[best_node]['weight']
-            best_predecessor_details = next(t['predecessor_details'] for t in earliest_execution_times[best_node] if
-                                            t['processor'] == best_processor)
-            candidates = []
+            best_predecessor_details = next((t['predecessor_details'] for t in earliest_execution_times[best_node] if
+                                             t['processor'] == best_processor), [])
 
+            # Ensure correct recording of predecessor details
+            candidates = []
             for times in earliest_execution_times[best_node]:
                 candidates.append({
                     "processor": times['processor'],
