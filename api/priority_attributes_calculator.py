@@ -21,6 +21,29 @@ class PriorityAttributesCalculator:
                 sl[node] = max(sl[pre] for pre in successors) + self.G.nodes[node]['weight']
         return sl
 
+    def calculate_sl_steps(self):
+        steps = []
+        sl = {}
+
+        for node in reversed(list(nx.topological_sort(self.G))):
+            successors = list(self.G.successors(node))
+            if len(successors) == 0:
+                sl[node] = self.G.nodes[node]['weight']
+                steps.append({
+                    "step": f"Calculate SL for node {node}",
+                    "details": {"successors": successors, "sl": sl[node]},
+                    "desc": f"Node {node} has no successors. SL is its weight {self.G.nodes[node]['weight']}."
+                })
+            else:
+                max_successor_sl = max(sl[pre] for pre in successors)
+                sl[node] = max_successor_sl + self.G.nodes[node]['weight']
+                steps.append({
+                    "step": f"Calculate SL for node {node}",
+                    "details": {"successors": successors, "max_successor_sl": max_successor_sl, "sl": sl[node]},
+                    "desc": f"Node {node} has successors {successors}. SL is its weight {self.G.nodes[node]['weight']} + max successor SL {max_successor_sl}."
+                })
+        return steps
+
     def calculate_t_level(self):
         t_level = {}
         for node in nx.topological_sort(self.G):
@@ -30,6 +53,33 @@ class PriorityAttributesCalculator:
             else:
                 t_level[node] = max(t_level[pred] + self.G.nodes[pred]['weight'] + self.G.edges[pred, node]['cost'] for pred in predecessors)
         return t_level
+
+    def calculate_est_steps(self):
+        steps = []
+        est = {}
+
+        for node in nx.topological_sort(self.G):
+            predecessors = list(self.G.predecessors(node))
+            if len(predecessors) == 0:
+                est[node] = 0
+                steps.append({
+                    "step": f"Calculate EST for node {node}",
+                    "details": {"predecessors": predecessors, "EST": est[node]},
+                    "desc": f"Node {node} has no predecessors. EST is initialized to 0."
+                })
+            else:
+                max_pred_est = max(
+                    est[pred] + self.G.nodes[pred]['weight'] + self.G.edges[pred, node]['cost'] for pred in
+                    predecessors)
+                est[node] = max_pred_est
+                steps.append({
+                    "step": f"Calculate EST for node {node}",
+                    "details": {"predecessors": predecessors, "max_pred_est": max_pred_est,
+                                "EST": est[node]},
+                    "desc": f"Node {node} has predecessors {predecessors}. EST is the maximum of predecessors' EST + node weight + edge cost."
+                })
+
+        return steps
 
     def calculate_est(self):
         est = {}
@@ -49,15 +99,41 @@ class PriorityAttributesCalculator:
                 lst[node] = min(lst[succ]-self.G.edges[node, succ]['cost'] for succ in successors) - self.G.nodes[node]['weight']
         return lst
 
-    def create_lst_lists(self, lst):
-        # Create lists of LST for each task and its dependents
-        lst_lists = {}
-        for node in self.G.nodes():
-            lst_list = [lst[node]]
-            for successor in self.G.successors(node):
-                lst_list.append(lst[successor])
-            lst_lists[node] = lst_list
-        return lst_lists
+    def calculate_lst_steps(self):
+        steps = []
+        lst = {}
+
+        # Calculate t_level first
+        est_steps = self.calculate_est_steps()
+        for step in est_steps:
+            steps.append(step)
+
+        t_level = self.calculate_t_level()
+
+        # Initialize LST for end nodes
+        for node in reversed(list(nx.topological_sort(self.G))):
+            successors = list(self.G.successors(node))
+            if len(successors) == 0:  # End node
+                lst[node] = t_level[node]
+                steps.append({
+                    "step": f"Calculate LST for node {node}",
+                    "details": {"Successors": successors, "LST": lst[node]},
+                    "desc": f"Node {node} is an end node. LST is initialised to EST, which is {t_level[node]}."
+                })
+
+        # Calculate LST for other nodes
+        for node in reversed(list(nx.topological_sort(self.G))):
+            successors = list(self.G.successors(node))
+            if len(successors) > 0:  # Non-end node
+                min_successor_lst = min(lst[succ] - self.G.edges[node, succ]['cost'] for succ in successors)
+                lst[node] = min_successor_lst - self.G.nodes[node]['weight']
+                steps.append({
+                    "step": f"Calculate LST for node {node}",
+                    "details": {"successors": successors, "min_successor_lst": min_successor_lst, "LST": lst[node]},
+                    "desc": f"Node {node} has successors {successors}. LST is the minimum of (successors' LST - edge cost) - node weight."
+                })
+
+        return steps
 
     def calculate_b_level(self):
         b_level = {}

@@ -1,6 +1,5 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-from api.steps import router as steps_router
 from api.graph_properties import router as graph_properties_router
 from api.algorithms import router as algorithm_steps_router
 
@@ -16,7 +15,6 @@ app.add_middleware(
 )
 
 # Include the routers
-app.include_router(steps_router)
 app.include_router(graph_properties_router, prefix="/graph")
 app.include_router(algorithm_steps_router, prefix="/algorithm")
 
