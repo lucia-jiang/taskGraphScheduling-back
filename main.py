@@ -5,10 +5,17 @@ from api.algorithms import router as algorithm_steps_router
 
 app = FastAPI()
 
+# CORS settings to allow specific origins (replace with your frontend URL)
+origins = [
+    "http://localhost",       # Example: local development URL
+    "http://localhost:3000",  # Example: React development server URL
+    "https://task-graph-scheduling-lucia-jiang-2e58e4e5.koyeb.app"  # Your deployed React app URL
+]
+
 # CORS settings to allow all origins
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:3000"],
+    allow_origins=origins,
     allow_credentials=True,
     allow_methods=["GET", "POST"],
     allow_headers=["*"],
