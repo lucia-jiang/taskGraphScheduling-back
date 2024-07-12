@@ -7,9 +7,10 @@ app = FastAPI()
 
 # CORS settings to allow specific origins (replace with your frontend URL)
 origins = [
-    "http://localhost",       # Example: local development URL
-    "http://localhost:3000",  # Example: React development server URL
-    "https://task-graph-scheduling-lucia-jiang-2e58e4e5.koyeb.app"  # Your deployed React app URL
+    "http://localhost",
+    "http://localhost:3000",
+    "https://task-graph-scheduling-lucia-jiang-2e58e4e5.koyeb.app",
+    "https://lucia-jiang.github.io"
 ]
 
 # CORS settings to allow all origins
