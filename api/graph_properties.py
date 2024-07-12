@@ -41,6 +41,7 @@ def calculate_properties(graph_data: GraphData):
     except Exception as e:
         raise HTTPException(status_code=400, detail=str(e))
 
+
 @router.post("/properties/est")
 def calculate_properties(graph_data: GraphData):
     try:

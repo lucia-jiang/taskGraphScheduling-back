@@ -5,6 +5,7 @@ import networkx as nx
 import pandas as pd
 from .graph_from_json import GraphGivenJSON
 
+
 class PriorityAttributesCalculator:
     def __init__(self, json_data):
         self.graph_from_json = GraphGivenJSON(json_data)
@@ -51,7 +52,9 @@ class PriorityAttributesCalculator:
             if len(predecessors) == 0:
                 t_level[node] = 0
             else:
-                t_level[node] = max(t_level[pred] + self.G.nodes[pred]['weight'] + self.G.edges[pred, node]['cost'] for pred in predecessors)
+                t_level[node] = max(
+                    t_level[pred] + self.G.nodes[pred]['weight'] + self.G.edges[pred, node]['cost'] for pred in
+                    predecessors)
         return t_level
 
     def calculate_est_steps(self):
@@ -93,10 +96,11 @@ class PriorityAttributesCalculator:
         t_level = self.calculate_t_level()
         for node in reversed(list(nx.topological_sort(self.G))):
             successors = list(self.G.successors(node))
-            if len(successors) == 0: #exist task
+            if len(successors) == 0:  # exist task
                 lst[node] = t_level[node]
             else:
-                lst[node] = min(lst[succ]-self.G.edges[node, succ]['cost'] for succ in successors) - self.G.nodes[node]['weight']
+                lst[node] = min(lst[succ] - self.G.edges[node, succ]['cost'] for succ in successors) - \
+                            self.G.nodes[node]['weight']
         return lst
 
     def calculate_lst_steps(self):
@@ -139,10 +143,11 @@ class PriorityAttributesCalculator:
         b_level = {}
         for node in reversed(list(nx.topological_sort(self.G))):
             successors = list(self.G.successors(node))
-            if len(successors) == 0: #exit task
+            if len(successors) == 0:  # exit task
                 b_level[node] = self.G.nodes[node]['weight']
             else:
-                b_level[node] = self.G.nodes[node]['weight'] + max(b_level[succ] + self.G.edges[node, succ]['cost'] for succ in successors)
+                b_level[node] = self.G.nodes[node]['weight'] + max(
+                    b_level[succ] + self.G.edges[node, succ]['cost'] for succ in successors)
         return b_level
 
     def obtain_attribute_dict(self, attribute=None):
@@ -343,7 +348,6 @@ class PriorityAttributesCalculator:
                             "max_start_time": start_time
                         })
 
-
                 end_time = start_time + self.G.nodes[task]['weight']
                 candidates.append({
                     "processor": processor,
@@ -519,7 +523,7 @@ class PriorityAttributesCalculator:
 
         return steps
 
-    #TODO: not working
+    # TODO: not working
     def calculate_dls_steps(self):
         steps = []
 
@@ -612,7 +616,7 @@ class PriorityAttributesCalculator:
 
         return steps
 
-    #TODO: BRUTE FORCE SOLUTION
+    # TODO: BRUTE FORCE SOLUTION
     def brute_force_solution(self):
         processors = {i: 0 for i in range(1, self.num_processors + 1)}
         schedule = []

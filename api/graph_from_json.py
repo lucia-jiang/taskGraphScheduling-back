@@ -1,6 +1,7 @@
 # api/graph_from_json.py
 import networkx as nx
 
+
 class GraphGivenJSON:
     def __init__(self, json_data):
         self.json_data = json_data
